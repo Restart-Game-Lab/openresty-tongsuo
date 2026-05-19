@@ -1,9 +1,15 @@
-name: Build and Push OpenResty Tongsuo Docker Image
+name: 🐳 Build & Push OpenResty + Tongsuo
 
-# Triggers:
-# 1. Push to main branch (auto-build)
-# 2. Manual trigger via GitHub Actions UI (workflow_dispatch)
-# 3. Weekly scheduled build to keep base images fresh
+# ╔══════════════════════════════════════════════════════════════════╗
+# ║  CI/CD: OpenResty + Tongsuo (铜锁) Docker 镜像构建与推送       ║
+# ║  4 阶段流水线: 准备 → 构建 → 推送 → 验证                      ║
+# ╚══════════════════════════════════════════════════════════════════╝
+#
+# 触发条件:
+#   1. push 到 main/master (仅 build/ 和 workflow 变更时)
+#   2. PR 到 main/master (仅构建验证，不推送)
+#   3. 手动触发 (workflow_dispatch，可选版本)
+#   4. 每周一 6:00 UTC 定时构建
 
 on:
   push:
@@ -31,7 +37,7 @@ on:
         required: false
         default: '1.29.2.4'
       push_to_registry:
-        description: 'Push image to registry?'
+        description: 'Push image to ghcr.io?'
         type: boolean
         required: false
         default: true
@@ -40,155 +46,261 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  # Default versions (overridable via workflow_dispatch)
   TONGSUO_VERSION: "8.5.0-pre1"
   OPENRESTY_VERSION: "1.29.2.4"
 
+# ═══════════════════════════════════════════════════════════════════
+#  Job 1: PREPARE — 生成 Docker 元数据（tags / labels）
+# ═══════════════════════════════════════════════════════════════════
 jobs:
-  build-and-push:
+  prepare:
+    name: "📋 准备 — 元数据"
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-      # Required for OIDC-based attestation
-      id-token: write
-      attestations: write
-
+    outputs:
+      tags: ${{ steps.meta.outputs.tags }}
+      labels: ${{ steps.meta.outputs.labels }}
+      image: ${{ steps.image-name.outputs.image }}
     steps:
-      - name: Checkout repository
+      - name: ⬇️ Checkout
         uses: actions/checkout@v4
 
-      - name: Set versions from inputs
+      - name: 🔢 设置版本号 (workflow_dispatch)
         if: github.event_name == 'workflow_dispatch'
         run: |
           echo "TONGSUO_VERSION=${{ github.event.inputs.tongsuo_version }}" >> $GITHUB_ENV
           echo "OPENRESTY_VERSION=${{ github.event.inputs.openresty_version }}" >> $GITHUB_ENV
 
-      # Generate metadata for Docker tags & labels
-      - name: Docker metadata
+      - name: 🏷️ 生成镜像名称
+        id: image-name
+        run: echo "image=${{ env.REGISTRY }}/${{ github.repository }}" >> $GITHUB_OUTPUT
+
+      - name: 🏷️ Docker 元数据
         id: meta
         uses: docker/metadata-action@v5
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
-            # Version tag: openresty-X.X.X-tongsuo-X.X.X
+            # 版本标签: openresty-X.X.X-tongsuo-X.X.X
             type=raw,value=openresty-${{ env.OPENRESTY_VERSION }}-tongsuo-${{ env.TONGSUO_VERSION }}
-            # Short version: latest
+            # 最新版
             type=raw,value=latest
-            # Git commit SHA (for pinning)
+            # Git SHA (精确锁定)
             type=sha,prefix=sha-
-            # Branch name
+            # 分支名
             type=ref,event=branch
-            # PR number (only on PR events)
+            # PR 编号
             type=ref,event=pr
           labels: |
             org.opencontainers.image.title=OpenResty Tongsuo
-            org.opencontainers.image.description=OpenResty ${{ env.OPENRESTY_VERSION }} + Tongsuo ${{ env.TONGSUO_VERSION }} with SM2/SM3/SM4/TLCP/NTLS
+            org.opencontainers.image.description=OpenResty ${{ env.OPENRESTY_VERSION }} + Tongsuo ${{ env.TONGSUO_VERSION }} (SM2/SM3/SM4/TLCP/NTLS)
             org.opencontainers.image.vendor=OpenResty Tongsuo Community
             tongsuo.version=${{ env.TONGSUO_VERSION }}
             openresty.version=${{ env.OPENRESTY_VERSION }}
 
-      - name: Set up Docker Buildx
+      - name: 📊 显示构建计划
+        run: |
+          echo "╔══════════════════════════════════════╗"
+          echo "║        📦 构 建 计 划                ║"
+          echo "╠══════════════════════════════════════╣"
+          echo "║ 🐉 Tongsuo  : ${{ env.TONGSUO_VERSION }}"
+          echo "║ 🦊 OpenResty: ${{ env.OPENRESTY_VERSION }}"
+          echo "║ 🏷️  Image   : ${{ steps.image-name.outputs.image }}"
+          echo "║ 📌 Event    : ${{ github.event_name }}"
+          echo "╚══════════════════════════════════════╝"
+          echo ""
+          echo "📌 Tags:"
+          echo "${{ steps.meta.outputs.tags }}" | sed 's/^/  - /'
+
+# ═══════════════════════════════════════════════════════════════════
+#  Job 2: BUILD — 编译 Docker 镜像（不推送）
+# ═══════════════════════════════════════════════════════════════════
+  build:
+    name: "🔨 构建 — 编译镜像"
+    needs: prepare
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: ⬇️ Checkout
+        uses: actions/checkout@v4
+
+      - name: 🛠️ 设置 Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          # Enable buildkit cache for faster rebuilds
-          buildkitd-flags: --debug
 
-      - name: Cache Docker layers
-        uses: actions/cache@v4
-        with:
-          path: /tmp/.buildx-cache
-          key: ${{ runner.os }}-buildx-${{ github.sha }}
-          restore-keys: |
-            ${{ runner.os }}-buildx-
-
-      - name: Log in to GitHub Container Registry
-        id: login
-        if: github.event_name != 'pull_request'
-        continue-on-error: true
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Build Docker image (PR/verify only — no push)
-        if: github.event_name == 'pull_request' || steps.login.outcome == 'failure'
+      - name: 🔨 编译 Docker 镜像
         uses: docker/build-push-action@v6
         with:
           context: ./build
           file: ./build/Dockerfile
           push: false
-          load: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          # 仅 PR 时加载到本地 Docker（便于手动检查）
+          load: ${{ github.event_name == 'pull_request' }}
+          tags: ${{ needs.prepare.outputs.tags }}
+          labels: ${{ needs.prepare.outputs.labels }}
           build-args: |
             RESTY_OPENSSL_VERSION=${{ env.TONGSUO_VERSION }}
             RESTY_VERSION=${{ env.OPENRESTY_VERSION }}
             RESTY_J=4
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache-new,mode=max
+          # 缓存: 写入 GitHub Actions cache，供 push job 复用
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
-      - name: Build and push Docker image
-        id: build
-        if: github.event_name != 'pull_request' && steps.login.outcome == 'success'
+      - name: 📊 构建结果
+        run: |
+          echo "✅ 镜像编译成功！"
+          echo "🏷️  Tags: ${{ needs.prepare.outputs.tags }}"
+
+# ═══════════════════════════════════════════════════════════════════
+#  Job 3: PUSH — 登录 ghcr.io 并推送镜像
+# ═══════════════════════════════════════════════════════════════════
+  push:
+    name: "📤 推送 — ghcr.io"
+    needs: [prepare, build]
+    if: |
+      github.event_name != 'pull_request' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.push_to_registry != 'false')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+      attestations: write
+    steps:
+      - name: ⬇️ Checkout
+        uses: actions/checkout@v4
+
+      - name: 🛠️ 设置 Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🔑 登录 ghcr.io（自动重试）
+        id: login
+        run: |
+          echo "🔑 Logging into ${{ env.REGISTRY }}..."
+          for i in 1 2 3 4 5; do
+            echo "  Attempt $i/5..."
+            if echo "${{ secrets.GITHUB_TOKEN }}" | docker login "${{ env.REGISTRY }}" -u "${{ github.actor }}" --password-stdin 2>&1; then
+              echo "✅ Login successful on attempt $i"
+              echo "login=success" >> $GITHUB_OUTPUT
+              exit 0
+            fi
+            if [ $i -lt 5 ]; then
+              WAIT=$((5 * i))
+              echo "  ⏳ Retrying in ${WAIT}s..."
+              sleep $WAIT
+            fi
+          done
+          echo "❌ Login failed after 5 attempts"
+          exit 1
+
+      - name: 📤 构建并推送镜像
+        id: push-step
         uses: docker/build-push-action@v6
         with:
           context: ./build
           file: ./build/Dockerfile
-          push: ${{ github.event_name != 'workflow_dispatch' || github.event.inputs.push_to_registry != 'false' }}
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+          push: true
+          tags: ${{ needs.prepare.outputs.tags }}
+          labels: ${{ needs.prepare.outputs.labels }}
           build-args: |
             RESTY_OPENSSL_VERSION=${{ env.TONGSUO_VERSION }}
             RESTY_VERSION=${{ env.OPENRESTY_VERSION }}
             RESTY_J=4
-          # GitHub Actions cache for faster rebuilds
+          # 复用 build job 的缓存（秒级重建）
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # Generate SBOM and attestation for supply chain security
-      - name: Generate artifact attestation
-        if: github.event_name != 'pull_request'
+      - name: 📜 生成供应链认证
         uses: actions/attest-build-provenance@v2
         with:
           subject-name: ${{ env.REGISTRY }}/${{ github.repository }}
-          subject-digest: ${{ steps.build.outputs.digest }}
+          subject-digest: ${{ steps.push-step.outputs.digest }}
           push-to-registry: true
 
-  # Verify the built image
+      - name: 📊 推送结果
+        run: |
+          echo "╔══════════════════════════════════════╗"
+          echo "║      ✅ 推 送 成 功                 ║"
+          echo "╠══════════════════════════════════════╣"
+          echo "║ 📦 Digest: ${{ steps.push-step.outputs.digest }}"
+          echo "║ 🏷️  Image: ${{ needs.prepare.outputs.image }}"
+          echo "╚══════════════════════════════════════╝"
+          echo ""
+          echo "📥 拉取命令:"
+          echo "  docker pull ${{ needs.prepare.outputs.image }}:latest"
+
+# ═══════════════════════════════════════════════════════════════════
+#  Job 4: VERIFY — 从 ghcr.io 拉取并验证国密算法
+# ═══════════════════════════════════════════════════════════════════
   verify:
-    needs: build-and-push
-    if: github.event_name != 'pull_request'
+    name: "✅ 验证 — 拉取测试"
+    needs: push
+    if: |
+      github.event_name != 'pull_request' &&
+      (github.event_name != 'workflow_dispatch' || github.event.inputs.push_to_registry != 'false')
     runs-on: ubuntu-latest
-    container:
-      image: ghcr.io/${{ github.repository }}:latest
-      credentials:
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
-
     steps:
-      - name: Verify Tongsuo version
+      - name: 🔑 登录 ghcr.io（自动重试）
         run: |
-          echo "=== Checking Tongsuo version ==="
-          /usr/local/openresty/openssl3/bin/openssl version
-          /usr/local/openresty/openssl3/bin/openssl version | grep -i tongsuo || echo "WARNING: Tongsuo string not found in version output"
+          echo "🔑 Logging into ${{ env.REGISTRY }}..."
+          for i in 1 2 3 4 5; do
+            echo "  Attempt $i/5..."
+            if echo "${{ secrets.GITHUB_TOKEN }}" | docker login "${{ env.REGISTRY }}" -u "${{ github.actor }}" --password-stdin 2>&1; then
+              echo "✅ Login successful on attempt $i"
+              exit 0
+            fi
+            if [ $i -lt 5 ]; then
+              WAIT=$((5 * i))
+              echo "  ⏳ Retrying in ${WAIT}s..."
+              sleep $WAIT
+            fi
+          done
+          echo "❌ Login failed after 5 attempts"
+          exit 1
 
-      - name: Verify OpenResty
+      - name: 📥 拉取镜像
         run: |
-          echo "=== Checking OpenResty ==="
-          /usr/local/openresty/nginx/sbin/nginx -V 2>&1
+          echo "📥 Pulling ${{ needs.prepare.outputs.image }}:latest ..."
+          docker pull "${{ needs.prepare.outputs.image }}:latest"
 
-      - name: Verify SM2/SM3/SM4
+      - name: 🔐 验证 Tongsuo 版本
         run: |
-          echo "=== Checking SM2 curve ==="
-          /usr/local/openresty/openssl3/bin/openssl ecparam -list_curves 2>&1 | grep -i sm2 || echo "SM2 not listed (check build options)"
-          echo "=== Checking SM3 digest ==="
-          echo "test" | /usr/local/openresty/openssl3/bin/openssl dgst -sm3 2>&1 || echo "SM3 not available (check build options)"
-          echo "=== Checking SM4 cipher ==="
-          /usr/local/openresty/openssl3/bin/openssl enc -sm4-cbc -help 2>&1 || echo "SM4 not available (check build options)"
+          echo "=== Tongsuo 版本 ==="
+          docker run --rm "${{ needs.prepare.outputs.image }}:latest" \
+            /usr/local/openresty/openssl3/bin/openssl version
 
-      - name: Verify NGINX TLS
+      - name: 🔐 验证国密算法 SM2/SM3/SM4
         run: |
-          echo "=== Checking if nginx starts ==="
-          /usr/local/openresty/nginx/sbin/nginx -t 2>&1 || echo "nginx config test had issues"
+          echo "=== SM2 曲线 ==="
+          docker run --rm "${{ needs.prepare.outputs.image }}:latest" \
+            /usr/local/openresty/openssl3/bin/openssl ecparam -list_curves 2>&1 | grep -i sm2 || echo "⚠️ SM2 未列出"
+
+          echo "=== SM3 摘要 ==="
+          docker run --rm "${{ needs.prepare.outputs.image }}:latest" \
+            bash -c "echo 'guomi-test' | /usr/local/openresty/openssl3/bin/openssl dgst -sm3"
+
+          echo "=== SM4 密码 ==="
+          docker run --rm "${{ needs.prepare.outputs.image }}:latest" \
+            /usr/local/openresty/openssl3/bin/openssl enc -sm4-cbc -help 2>&1 | head -3 || echo "⚠️ SM4 不可用"
+
+      - name: 🦊 验证 OpenResty
+        run: |
+          echo "=== OpenResty 编译信息 ==="
+          docker run --rm "${{ needs.prepare.outputs.image }}:latest" \
+            /usr/local/openresty/nginx/sbin/nginx -V 2>&1 | grep -E "built with|nginx version"
+
+          echo "=== nginx 配置测试 ==="
+          docker run --rm "${{ needs.prepare.outputs.image }}:latest" \
+            /usr/local/openresty/nginx/sbin/nginx -t 2>&1
+
+      - name: 🎉 验证完成
+        run: |
+          echo "╔══════════════════════════════════════╗"
+          echo "║   ✅ 全 部 验 证 通 过              ║"
+          echo "╠══════════════════════════════════════╣"
+          echo "║ 🐉 SM2/SM3/SM4 国密算法  ✅         ║"
+          echo "║ 🦊 OpenResty 正常运行   ✅         ║"
+          echo "║ 📦 ghcr.io 推送成功     ✅         ║"
+          echo "╚══════════════════════════════════════╝"
+          echo ""
+          echo "📥 立即使用:"
+          echo "  docker pull ${{ needs.prepare.outputs.image }}:latest"

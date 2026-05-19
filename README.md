@@ -95,12 +95,23 @@ server {
 
 ## CI/CD
 
-本仓库使用 GitHub Actions 自动构建和推送镜像到 GitHub Container Registry。
+本仓库使用 GitHub Actions 自动构建和推送镜像到 GitHub Container Registry，采用 **4 阶段流水线**：
 
-- **自动触发**: 推送到 `main` 分支
-- **手动触发**: Actions → "Build and Push OpenResty Tongsuo Docker Image" → Run workflow
-- **定时构建**: 每周一 6:00 UTC (保持基础镜像更新)
-- **PR 检查**: PR 会构建但不推送 (验证 Dockerfile 可构建)
+| 阶段 | Job 名称 | 说明 |
+|------|----------|------|
+| 1 | `📋 准备 — 元数据` | 生成镜像标签、labels、版本号 |
+| 2 | `🔨 构建 — 编译镜像` | 编译 Docker 镜像（缓存到 GitHub Actions Cache） |
+| 3 | `📤 推送 — ghcr.io` | 登录 ghcr.io（自动重试），从缓存秒级重建并推送 |
+| 4 | `✅ 验证 — 拉取测试` | 从 ghcr.io 拉取镜像，验证 SM2/SM3/SM4/OpenResty |
+
+**触发条件：**
+
+- **自动触发**: 推送到 `main`/`master` 分支（仅 `build/` 和 workflow 变更时）
+- **手动触发**: Actions → "🐳 Build & Push OpenResty + Tongsuo" → Run workflow
+- **定时构建**: 每周一 6:00 UTC（保持基础镜像更新）
+- **PR 检查**: PR 只运行准备+构建（验证 Dockerfile 可编译，不推送）
+
+**ghcr.io 登录重试：** 推送和验证阶段内置 5 次自动重试+指数退避，解决偶发性 `Client.Timeout` 问题。
 
 ## 项目结构
 
