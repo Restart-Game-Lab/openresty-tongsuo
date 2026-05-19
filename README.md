@@ -24,7 +24,7 @@
 ### 从 GitHub Container Registry 拉取
 
 ```bash
-docker pull ghcr.io/YOUR_USERNAME/openresty-tongsuo:latest
+docker pull ghcr.io/preca-hoshino/openresty-tongsuo:latest
 ```
 
 ### 运行
@@ -32,7 +32,7 @@ docker pull ghcr.io/YOUR_USERNAME/openresty-tongsuo:latest
 ```bash
 docker run -d -p 80:80 -p 443:443 \
   --name openresty-tongsuo \
-  ghcr.io/YOUR_USERNAME/openresty-tongsuo:latest
+  ghcr.io/preca-hoshino/openresty-tongsuo:latest
 ```
 
 ### 本地构建

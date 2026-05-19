@@ -199,7 +199,7 @@ openssl s_client -connect localhost:443 -tls1_3
 git init
 git add -A
 git commit -m "feat: OpenResty + Tongsuo (铜锁) Docker image with CI/CD"
-git remote add origin https://github.com/YOUR_USERNAME/openresty-tongsuo.git
+git remote add origin https://github.com/preca-hoshino/openresty-tongsuo.git
 git push -u origin main
 ```
 
@@ -215,9 +215,9 @@ git push -u origin main
 ### 7.3 镜像标签
 
 ```
-ghcr.io/YOUR_USERNAME/openresty-tongsuo:latest
-ghcr.io/YOUR_USERNAME/openresty-tongsuo:openresty-1.29.2.4-tongsuo-8.5.0-pre1
-ghcr.io/YOUR_USERNAME/openresty-tongsuo:sha-<commit-sha>
+ghcr.io/preca-hoshino/openresty-tongsuo:latest
+ghcr.io/preca-hoshino/openresty-tongsuo:openresty-1.29.2.4-tongsuo-8.5.0-pre1
+ghcr.io/preca-hoshino/openresty-tongsuo:sha-<commit-sha>
 ```
 
 ### 7.4 手动触发构建
@@ -231,12 +231,12 @@ ghcr.io/YOUR_USERNAME/openresty-tongsuo:sha-<commit-sha>
 
 ```bash
 # 拉取镜像
-docker pull ghcr.io/YOUR_USERNAME/openresty-tongsuo:latest
+docker pull ghcr.io/preca-hoshino/openresty-tongsuo:latest
 
 # 运行
 docker run -d -p 80:80 -p 443:443 \
   --name openresty-tongsuo \
-  ghcr.io/YOUR_USERNAME/openresty-tongsuo:latest
+  ghcr.io/preca-hoshino/openresty-tongsuo:latest
 ```
 
 ---
