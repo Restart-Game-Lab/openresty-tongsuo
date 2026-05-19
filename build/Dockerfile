@@ -20,10 +20,9 @@ ARG RESTY_LUAROCKS_VERSION="3.13.0"
 ARG RESTY_OPENSSL_VERSION="8.5.0-pre1"
 ARG RESTY_OPENSSL_URL_BASE="https://github.com/Tongsuo-Project/Tongsuo/archive/refs/tags"
 # Tongsuo 8.4+ removed: Camellia, SEED, RC5, MD2, MD4, MDC2, IDEA, Blowfish, CAST, RIPEMD
+# Tongsuo 8.5+ (OpenSSL 3.5.x): enable-ssl3/enable-ssl3-method removed from OpenSSL 3.x
 # Added: enable-ntls for 国密 TLCP/NTLS support
-ARG RESTY_OPENSSL_BUILD_OPTIONS="enable-ntls enable-rfc3779 enable-cms \
-        enable-weak-ssl-ciphers enable-ssl3 enable-ssl3-method enable-ktls \
-        "
+ARG RESTY_OPENSSL_BUILD_OPTIONS="enable-ntls enable-cms enable-ktls"
 
 # https://github.com/openresty/openresty-packaging/blob/master/deb/openresty-pcre2/debian/rules
 ARG RESTY_PCRE_VERSION="10.47"
@@ -116,6 +115,7 @@ LABEL resty_pcre_options="${RESTY_PCRE_OPTIONS}"
 # Copy helper scripts
 COPY tmp /tmp
 
+# ===== Stage 1: Install system dependencies =====
 RUN DEBIAN_FRONTEND=noninteractive apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
         build-essential \
@@ -138,10 +138,11 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update \
         ${RESTY_ADD_PACKAGE_RUNDEPS} \
     && cd /tmp \
     && if [ -f /tmp/pre.sh ]; then bash /tmp/pre.sh; fi \
-    && if [ -n "${RESTY_EVAL_PRE_CONFIGURE}" ]; then eval $(echo ${RESTY_EVAL_PRE_CONFIGURE}); fi \
-    \
-    # ===== Build Tongsuo (铜锁) ===== \
-    && echo '=== Downloading and building Tongsuo (铜锁) ===' \
+    && if [ -n "${RESTY_EVAL_PRE_CONFIGURE}" ]; then eval $(echo ${RESTY_EVAL_PRE_CONFIGURE}); fi
+
+# ===== Stage 2: Download and build Tongsuo (铜锁) =====
+RUN echo '=== Downloading and building Tongsuo (铜锁) ===' \
+    && cd /tmp \
     && curl -fSL "${RESTY_OPENSSL_URL_BASE}/${RESTY_OPENSSL_VERSION}.tar.gz" \
          -o tongsuo-${RESTY_OPENSSL_VERSION}.tar.gz \
     && tar xzf tongsuo-${RESTY_OPENSSL_VERSION}.tar.gz \
@@ -156,10 +157,12 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update \
       ${RESTY_OPENSSL_BUILD_OPTIONS} \
     && make -j${RESTY_J} \
     && make -j${RESTY_J} install_sw \
+    && rm -f /tmp/tongsuo-${RESTY_OPENSSL_VERSION}.tar.gz \
+    && rm -rf /tmp/openssl-${RESTY_OPENSSL_VERSION}
+
+# ===== Stage 3: Download and build PCRE2 =====
+RUN echo '=== Downloading and building PCRE2 ===' \
     && cd /tmp \
-    \
-    # ===== Build PCRE2 ===== \
-    && echo '=== Downloading and building PCRE2 ===' \
     && curl -fSL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${RESTY_PCRE_VERSION}/pcre2-${RESTY_PCRE_VERSION}.tar.gz" \
          -o pcre2-${RESTY_PCRE_VERSION}.tar.gz \
     && echo "${RESTY_PCRE_SHA256}  pcre2-${RESTY_PCRE_VERSION}.tar.gz" | shasum -a 256 --check \
@@ -171,10 +174,12 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update \
         ${RESTY_PCRE_BUILD_OPTIONS} \
     && CFLAGS="-g -O3" make -j${RESTY_J} \
     && CFLAGS="-g -O3" make -j${RESTY_J} install \
+    && rm -f /tmp/pcre2-${RESTY_PCRE_VERSION}.tar.gz \
+    && rm -rf /tmp/pcre2-${RESTY_PCRE_VERSION}
+
+# ===== Stage 4: Download and build OpenResty =====
+RUN echo '=== Downloading and building OpenResty ===' \
     && cd /tmp \
-    \
-    # ===== Build OpenResty ===== \
-    && echo '=== Downloading and building OpenResty ===' \
     && curl -fSL "https://openresty.org/download/openresty-${RESTY_VERSION}.tar.gz" \
          -o openresty-${RESTY_VERSION}.tar.gz \
     && if [ ! -d openresty-${RESTY_VERSION} ]; then tar xzf openresty-${RESTY_VERSION}.tar.gz; fi \
@@ -184,16 +189,12 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update \
     && if [ -n "${RESTY_EVAL_PRE_MAKE}" ]; then eval $(echo ${RESTY_EVAL_PRE_MAKE}); fi \
     && make -j${RESTY_J} \
     && make -j${RESTY_J} install \
+    && rm -f /tmp/openresty-${RESTY_VERSION}.tar.gz \
+    && rm -rf /tmp/openresty-${RESTY_VERSION}
+
+# ===== Stage 5: Build LuaRocks =====
+RUN echo '=== Downloading and building LuaRocks ===' \
     && cd /tmp \
-    \
-    # ===== Cleanup build artifacts ===== \
-    && rm -rf \
-        tongsuo-${RESTY_OPENSSL_VERSION}.tar.gz openssl-${RESTY_OPENSSL_VERSION} \
-        pcre2-${RESTY_PCRE_VERSION}.tar.gz pcre2-${RESTY_PCRE_VERSION} \
-        openresty-${RESTY_VERSION}.tar.gz openresty-${RESTY_VERSION} \
-    \
-    # ===== Build LuaRocks ===== \
-    && echo '=== Downloading and building LuaRocks ===' \
     && curl -fSL "https://luarocks.github.io/luarocks/releases/luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz" \
          -o luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz \
     && tar xzf luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz \
@@ -206,10 +207,10 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update \
     && make install \
     && cd /tmp \
     && if [ -n "${RESTY_EVAL_POST_MAKE}" ]; then eval $(echo ${RESTY_EVAL_POST_MAKE}); fi \
-    && rm -rf luarocks-${RESTY_LUAROCKS_VERSION} luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz \
-    \
-    # ===== Final cleanup ===== \
-    && if [ -n "${RESTY_ADD_PACKAGE_BUILDDEPS}" ]; then DEBIAN_FRONTEND=noninteractive apt-get remove -y --purge ${RESTY_ADD_PACKAGE_BUILDDEPS} ; fi \
+    && rm -rf luarocks-${RESTY_LUAROCKS_VERSION} luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz
+
+# ===== Stage 6: Final cleanup =====
+RUN if [ -n "${RESTY_ADD_PACKAGE_BUILDDEPS}" ]; then DEBIAN_FRONTEND=noninteractive apt-get remove -y --purge ${RESTY_ADD_PACKAGE_BUILDDEPS} ; fi \
     && DEBIAN_FRONTEND=noninteractive apt-get autoremove -y \
     && mkdir -p /var/run/openresty \
     && ln -sf /dev/stdout /usr/local/openresty/nginx/logs/access.log \
