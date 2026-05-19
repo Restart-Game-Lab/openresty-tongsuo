@@ -55,6 +55,8 @@ jobs:
           images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
             type=raw,value=openresty-${{ env.OPENRESTY_VERSION }}-tongsuo-${{ env.TONGSUO_VERSION }}
+            type=raw,value=openresty-${{ env.OPENRESTY_VERSION }}
+            type=raw,value=${{ env.OPENRESTY_VERSION }}
             type=raw,value=latest
             type=sha,prefix=sha-
             type=ref,event=branch
