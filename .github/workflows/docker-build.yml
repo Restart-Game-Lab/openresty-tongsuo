@@ -110,6 +110,7 @@ jobs:
           build-args: |
             RESTY_OPENSSL_VERSION=${{ env.TONGSUO_VERSION }}
             RESTY_VERSION=${{ env.OPENRESTY_VERSION }}
+            PANEL_OPENRESTY_VERSION=${{ env.OPENRESTY_VERSION }}-${{ env.PANEL_APP_REVISION }}-${{ env.UBUNTU_CODENAME }}
             RESTY_J=4
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -157,6 +158,7 @@ jobs:
           build-args: |
             RESTY_OPENSSL_VERSION=${{ env.TONGSUO_VERSION }}
             RESTY_VERSION=${{ env.OPENRESTY_VERSION }}
+            PANEL_OPENRESTY_VERSION=${{ env.OPENRESTY_VERSION }}-${{ env.PANEL_APP_REVISION }}-${{ env.UBUNTU_CODENAME }}
             RESTY_J=4
           cache-from: type=gha
           cache-to: type=gha,mode=max

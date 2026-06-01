@@ -5,6 +5,10 @@
 ARG RESTY_IMAGE_BASE="ubuntu"
 ARG RESTY_IMAGE_TAG="noble"
 
+# Pull 1pwaf WAF files from official 1Panel OpenResty image (multi-stage)
+ARG PANEL_OPENRESTY_VERSION="1.29.2.5-0-noble"
+FROM 1panel/openresty:${PANEL_OPENRESTY_VERSION} as panel-openresty
+
 FROM ${RESTY_IMAGE_BASE}:${RESTY_IMAGE_TAG}
 
 LABEL maintainer="OpenResty Tongsuo Image"
@@ -95,6 +99,7 @@ LABEL resty_image_tag="${RESTY_IMAGE_TAG}"
 LABEL resty_version="${RESTY_VERSION}"
 LABEL resty_luarocks_version="${RESTY_LUAROCKS_VERSION}"
 LABEL resty_openssl_version="${RESTY_OPENSSL_VERSION}"
+LABEL resty_openssl_patch_version="${RESTY_OPENSSL_VERSION}"
 LABEL resty_openssl_url_base="${RESTY_OPENSSL_URL_BASE}"
 LABEL resty_openssl_build_options="${RESTY_OPENSSL_BUILD_OPTIONS}"
 LABEL resty_pcre_version="${RESTY_PCRE_VERSION}"
@@ -114,6 +119,20 @@ LABEL resty_pcre_options="${RESTY_PCRE_OPTIONS}"
 
 # Copy helper scripts
 COPY tmp /tmp
+
+ARG CONTAINER_PACKAGE_URL
+RUN if [ -n "${CONTAINER_PACKAGE_URL}" ]; then \
+      if [ -f /etc/apt/sources.list ]; then \
+        sed -i "s|http://archive.ubuntu.com/ubuntu/|${CONTAINER_PACKAGE_URL}|g" /etc/apt/sources.list \
+        && sed -i "s|http://security.ubuntu.com/ubuntu/|${CONTAINER_PACKAGE_URL}|g" /etc/apt/sources.list; \
+      fi; \
+      if [ -f /etc/apt/sources.list.d/ubuntu.sources ]; then \
+        sed -i "s|http://archive.ubuntu.com/ubuntu/|${CONTAINER_PACKAGE_URL}|g" /etc/apt/sources.list.d/ubuntu.sources \
+        && sed -i "s|http://security.ubuntu.com/ubuntu/|${CONTAINER_PACKAGE_URL}|g" /etc/apt/sources.list.d/ubuntu.sources; \
+      fi; \
+    fi
+
+COPY --from=panel-openresty /usr/local/openresty/modules/ngx_brotli /usr/local/openresty/modules/ngx_brotli
 
 # ===== Stage 1: Install system dependencies =====
 RUN DEBIAN_FRONTEND=noninteractive apt-get update \
@@ -140,7 +159,8 @@ RUN DEBIAN_FRONTEND=noninteractive apt-get update \
     && if [ -f /tmp/pre.sh ]; then bash /tmp/pre.sh; fi \
     && if [ -n "${RESTY_EVAL_PRE_CONFIGURE}" ]; then eval $(echo ${RESTY_EVAL_PRE_CONFIGURE}); fi
 
-# ===== Stage 2: Download and build Tongsuo (铜锁) =====
+# ===== Build Tongsuo (铜锁) → PCRE2 → OpenResty → LuaRocks =====
+# Official 1Panel uses a single RUN to minimize layer count
 RUN echo '=== Downloading and building Tongsuo (铜锁) ===' \
     && cd /tmp \
     && curl -fSL "${RESTY_OPENSSL_URL_BASE}/${RESTY_OPENSSL_VERSION}.tar.gz" \
@@ -157,12 +177,10 @@ RUN echo '=== Downloading and building Tongsuo (铜锁) ===' \
       ${RESTY_OPENSSL_BUILD_OPTIONS} \
     && make -j${RESTY_J} \
     && make -j${RESTY_J} install_sw \
-    && rm -f /tmp/tongsuo-${RESTY_OPENSSL_VERSION}.tar.gz \
-    && rm -rf /tmp/openssl-${RESTY_OPENSSL_VERSION}
-
-# ===== Stage 3: Download and build PCRE2 =====
-RUN echo '=== Downloading and building PCRE2 ===' \
     && cd /tmp \
+    && rm -f tongsuo-${RESTY_OPENSSL_VERSION}.tar.gz \
+    && rm -rf openssl-${RESTY_OPENSSL_VERSION} \
+    && echo '=== Downloading and building PCRE2 ===' \
     && curl -fSL "https://github.com/PCRE2Project/pcre2/releases/download/pcre2-${RESTY_PCRE_VERSION}/pcre2-${RESTY_PCRE_VERSION}.tar.gz" \
          -o pcre2-${RESTY_PCRE_VERSION}.tar.gz \
     && echo "${RESTY_PCRE_SHA256}  pcre2-${RESTY_PCRE_VERSION}.tar.gz" | shasum -a 256 --check \
@@ -174,12 +192,10 @@ RUN echo '=== Downloading and building PCRE2 ===' \
         ${RESTY_PCRE_BUILD_OPTIONS} \
     && CFLAGS="-g -O3" make -j${RESTY_J} \
     && CFLAGS="-g -O3" make -j${RESTY_J} install \
-    && rm -f /tmp/pcre2-${RESTY_PCRE_VERSION}.tar.gz \
-    && rm -rf /tmp/pcre2-${RESTY_PCRE_VERSION}
-
-# ===== Stage 4: Download and build OpenResty =====
-RUN echo '=== Downloading and building OpenResty ===' \
     && cd /tmp \
+    && rm -f pcre2-${RESTY_PCRE_VERSION}.tar.gz \
+    && rm -rf pcre2-${RESTY_PCRE_VERSION} \
+    && echo '=== Downloading and building OpenResty ===' \
     && curl -fSL "https://openresty.org/download/openresty-${RESTY_VERSION}.tar.gz" \
          -o openresty-${RESTY_VERSION}.tar.gz \
     && if [ ! -d openresty-${RESTY_VERSION} ]; then tar xzf openresty-${RESTY_VERSION}.tar.gz; fi \
@@ -189,14 +205,12 @@ RUN echo '=== Downloading and building OpenResty ===' \
     && if [ -n "${RESTY_EVAL_PRE_MAKE}" ]; then eval $(echo ${RESTY_EVAL_PRE_MAKE}); fi \
     && make -j${RESTY_J} \
     && make -j${RESTY_J} install \
-    && rm -f /tmp/openresty-${RESTY_VERSION}.tar.gz \
-    && rm -rf /tmp/openresty-${RESTY_VERSION}
-
-# ===== Stage 5: Build LuaRocks =====
-RUN echo '=== Downloading and building LuaRocks ===' \
     && cd /tmp \
-    && curl -fSL "https://luarocks.github.io/luarocks/releases/luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz" \
-         -o luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz \
+    && rm -rf \
+        openssl-${RESTY_OPENSSL_VERSION}.tar.gz openssl-${RESTY_OPENSSL_VERSION} \
+        pcre2-${RESTY_PCRE_VERSION}.tar.gz pcre2-${RESTY_PCRE_VERSION} \
+        openresty-${RESTY_VERSION}.tar.gz openresty-${RESTY_VERSION} \
+    && echo '=== Downloading and building LuaRocks ===' \
     && tar xzf luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz \
     && cd luarocks-${RESTY_LUAROCKS_VERSION} \
     && ./configure \
@@ -207,10 +221,8 @@ RUN echo '=== Downloading and building LuaRocks ===' \
     && make install \
     && cd /tmp \
     && if [ -n "${RESTY_EVAL_POST_MAKE}" ]; then eval $(echo ${RESTY_EVAL_POST_MAKE}); fi \
-    && rm -rf luarocks-${RESTY_LUAROCKS_VERSION} luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz
-
-# ===== Stage 6: Final cleanup =====
-RUN if [ -n "${RESTY_ADD_PACKAGE_BUILDDEPS}" ]; then DEBIAN_FRONTEND=noninteractive apt-get remove -y --purge ${RESTY_ADD_PACKAGE_BUILDDEPS} ; fi \
+    && rm -rf luarocks-${RESTY_LUAROCKS_VERSION} luarocks-${RESTY_LUAROCKS_VERSION}.tar.gz \
+    && if [ -n "${RESTY_ADD_PACKAGE_BUILDDEPS}" ]; then DEBIAN_FRONTEND=noninteractive apt-get remove -y --purge ${RESTY_ADD_PACKAGE_BUILDDEPS} ; fi \
     && DEBIAN_FRONTEND=noninteractive apt-get autoremove -y \
     && mkdir -p /var/run/openresty \
     && ln -sf /dev/stdout /usr/local/openresty/nginx/logs/access.log \
@@ -232,7 +244,14 @@ COPY nginx.conf /usr/local/openresty/nginx/conf/nginx.conf
 COPY nginx.vh.default.conf /etc/nginx/conf.d/default.conf
 
 # Run post-install script if exists
-RUN if [ -f /tmp/default.sh ]; then bash /tmp/default.sh; fi
+RUN bash /tmp/default.sh
+
+# Copy 1pwaf WAF from official 1Panel OpenResty (matches 1Panel-dev/appstore behavior)
+COPY --from=panel-openresty /usr/local/openresty/1pwaf /usr/local/openresty/1pwaf
+COPY --from=panel-openresty /usr/local/openresty/1pwaf/libraries/libmaxminddb.so /usr/local/openresty/1pwaf/libraries/libmaxminddb.so
+COPY --from=panel-openresty /usr/local/openresty/1pwaf/libraries/libinjection.so /usr/local/openresty/1pwaf/libraries/libinjection.so
+COPY --from=panel-openresty /usr/local/openresty/luajit/lib/lua/5.1/lsqlite3.so /usr/local/openresty/luajit/lib/lua/5.1/lsqlite3.so
+COPY --from=panel-openresty /usr/local/openresty/luajit/lib/lua/5.1/lfs.so /usr/local/openresty/luajit/lib/lua/5.1/lfs.so
 
 # Verify Tongsuo build
 RUN /usr/local/openresty/openssl3/bin/openssl version \
