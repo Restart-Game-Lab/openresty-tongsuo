@@ -143,6 +143,21 @@ server {
 | Camellia/SEED/RC5/MD2 | 可选 | 已删除 |
 | FIPS | OpenSSL FIPS 140 | GM/T 0028 国密局认证 |
 
+## 许可证
+
+本项目基于 [1Panel OpenResty Dockerfile](https://github.com/1Panel-dev/appstore)（GPL-3.0）改造，采用 [GNU General Public License v3.0](LICENSE)。
+
+本项目打包的上游组件各自遵循原始许可协议：
+
+| 组件 | 许可证 |
+|------|--------|
+| [OpenResty](https://github.com/openresty/openresty) | BSD-2-Clause |
+| [Tongsuo (铜锁)](https://github.com/Tongsuo-Project/Tongsuo) | Apache-2.0 |
+| [nginx](https://nginx.org) | BSD-2-Clause |
+| [PCRE2](https://github.com/PCRE2Project/pcre2) | BSD-3-Clause |
+| [LuaJIT](https://luajit.org) | MIT |
+| [1Panel appstore Dockerfile](https://github.com/1Panel-dev/appstore) | GPL-3.0 |
+
 ## 参考
 
 - [铜锁 GitHub](https://github.com/Tongsuo-Project/Tongsuo)
@@ -150,7 +165,3 @@ server {
 - [RFC 8998 - TLS 1.3 + 国密](https://datatracker.ietf.org/doc/html/rfc8998)
 - [GB/T 38636-2020 - TLCP 协议](https://std.samr.gov.cn/gb/search/gbDetailed?id=71D5A5E5F5C5B5C5E5F5C5B5C5E5F5C5)
 - [1Panel OpenResty Dockerfile](https://github.com/1Panel-dev/appstore/tree/dev/apps/openresty)
-
-## 许可证
-
-本项目基于原始 OpenResty Docker 镜像修改，遵循相应的开源许可协议。
