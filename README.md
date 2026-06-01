@@ -4,11 +4,14 @@
 
 基于 [1Panel OpenResty Dockerfile](https://github.com/1Panel-dev/appstore)，将 OpenSSL 3.5.6 替换为[铜锁 (Tongsuo) 8.5.0-pre1](https://github.com/Tongsuo-Project/Tongsuo)，实现国密算法全栈支持。
 
+> 版本命名对齐 1Panel appstore：`{openresty_version}-{panel_revision}-{ubuntu_codename}-tongsuo`
+> 例：`1.29.2.5-0-noble-tongsuo`
+
 ## 特性
 
 | 特性 | 状态 |
 |------|------|
-| OpenResty 1.29.2.4 | ✅ |
+| OpenResty 1.29.2.5 | ✅ |
 | Tongsuo 8.5.0-pre1 (基于 OpenSSL 3.5.4) | ✅ |
 | SM2/SM3/SM4 国密算法 | ✅ |
 | TLCP (GB/T 38636) 双证书 | ✅ |
@@ -46,7 +49,7 @@ docker build -t openresty-tongsuo ./build
 ```bash
 docker build \
   --build-arg RESTY_OPENSSL_VERSION=8.5.0-pre1 \
-  --build-arg RESTY_VERSION=1.29.2.4 \
+  --build-arg RESTY_VERSION=1.29.2.5 \
   --build-arg RESTY_J=$(nproc) \
   -t openresty-tongsuo \
   ./build

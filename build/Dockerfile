@@ -8,12 +8,12 @@ ARG RESTY_IMAGE_TAG="noble"
 FROM ${RESTY_IMAGE_BASE}:${RESTY_IMAGE_TAG}
 
 LABEL maintainer="OpenResty Tongsuo Image"
-LABEL description="OpenResty 1.29.2.4 + Tongsuo 8.5.0-pre1 with SM2/SM3/SM4/TLCP/NTLS support"
+LABEL description="OpenResty 1.29.2.5 + Tongsuo 8.5.0-pre1 with SM2/SM3/SM4/TLCP/NTLS support"
 
 # Docker Build Arguments
 ARG RESTY_IMAGE_BASE="ubuntu"
 ARG RESTY_IMAGE_TAG="noble"
-ARG RESTY_VERSION="1.29.2.4"
+ARG RESTY_VERSION="1.29.2.5"
 ARG RESTY_LUAROCKS_VERSION="3.13.0"
 
 # === Tongsuo (铜锁) replacing OpenSSL ===

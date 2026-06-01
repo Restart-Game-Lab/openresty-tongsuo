@@ -216,8 +216,7 @@ git push -u origin main
 
 ```
 ghcr.io/preca-hoshino/openresty-tongsuo:latest
-ghcr.io/preca-hoshino/openresty-tongsuo:openresty-1.29.2.4-tongsuo-8.5.0-pre1
-ghcr.io/preca-hoshino/openresty-tongsuo:sha-<commit-sha>
+ghcr.io/preca-hoshino/openresty-tongsuo:1.29.2.5-0-noble-tongsuo
 ```
 
 ### 7.4 手动触发构建
@@ -247,5 +246,5 @@ docker run -d -p 80:80 -p 443:443 \
 - 铜锁文档：https://www.tongsuo.net/docs
 - RFC 8998（TLS 1.3 + 国密单证书）：https://datatracker.ietf.org/doc/html/rfc8998
 - GB/T 38636-2020（TLCP 国密双证书协议）
-- 1Panel OpenResty Dockerfile：`apps/openresty/1.29.2.4-0-noble/build/Dockerfile`
+- 1Panel OpenResty Dockerfile：`apps/openresty/1.29.2.5-0-noble/build/Dockerfile`
 - 本项目仓库：`build/Dockerfile` + `.github/workflows/docker-build.yml`

@@ -1,9 +1,6 @@
 # .gitignore — OpenResty Tongsuo Patch
 # Exclude large binary files and build artifacts
 
-# Downloaded original files (for reference only)
-original-*
-
 # Docker build artifacts
 *.tar.gz
 *.zip

@@ -8,9 +8,6 @@
 # GitHub
 .github
 
-# Original reference files
-original-*
-
 # Documentation
 *.md
 !build/**/*.md

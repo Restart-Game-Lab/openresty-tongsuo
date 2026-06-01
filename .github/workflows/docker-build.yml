@@ -14,7 +14,13 @@ on:
         default: '8.5.0-pre1'
       openresty_version:
         description: 'OpenResty version'
-        default: '1.29.2.4'
+        default: '1.29.2.5'
+      panel_app_revision:
+        description: '1Panel app revision number'
+        default: '0'
+      ubuntu_codename:
+        description: 'Ubuntu codename'
+        default: 'noble'
       push_to_registry:
         description: 'Push to ghcr.io?'
         type: boolean
@@ -25,7 +31,9 @@ on:
 env:
   REGISTRY: ghcr.io
   TONGSUO_VERSION: "8.5.0-pre1"
-  OPENRESTY_VERSION: "1.29.2.4"
+  OPENRESTY_VERSION: "1.29.2.5"
+  PANEL_APP_REVISION: "0"
+  UBUNTU_CODENAME: "noble"
 
 jobs:
   # ============================================================
@@ -45,6 +53,8 @@ jobs:
         run: |
           echo "TONGSUO_VERSION=${{ github.event.inputs.tongsuo_version }}" >> $GITHUB_ENV
           echo "OPENRESTY_VERSION=${{ github.event.inputs.openresty_version }}" >> $GITHUB_ENV
+          echo "PANEL_APP_REVISION=${{ github.event.inputs.panel_app_revision }}" >> $GITHUB_ENV
+          echo "UBUNTU_CODENAME=${{ github.event.inputs.ubuntu_codename }}" >> $GITHUB_ENV
 
       - id: image-name
         run: echo "image=${{ env.REGISTRY }}/${{ github.repository }}" >> $GITHUB_OUTPUT
@@ -54,25 +64,24 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ github.repository }}
           tags: |
-            type=raw,value=openresty-${{ env.OPENRESTY_VERSION }}-tongsuo-${{ env.TONGSUO_VERSION }}
-            type=raw,value=openresty-${{ env.OPENRESTY_VERSION }}
-            type=raw,value=${{ env.OPENRESTY_VERSION }}
+            type=raw,value=${{ env.OPENRESTY_VERSION }}-${{ env.PANEL_APP_REVISION }}-${{ env.UBUNTU_CODENAME }}-tongsuo
             type=raw,value=latest
-            type=sha,prefix=sha-
-            type=ref,event=branch
-            type=ref,event=pr
           labels: |
             org.opencontainers.image.title=OpenResty Tongsuo
             org.opencontainers.image.description=OpenResty ${{ env.OPENRESTY_VERSION }} + Tongsuo ${{ env.TONGSUO_VERSION }} (SM2/SM3/SM4/TLCP/NTLS)
             org.opencontainers.image.vendor=OpenResty Tongsuo Community
+            org.opencontainers.image.version=${{ env.OPENRESTY_VERSION }}-${{ env.PANEL_APP_REVISION }}-${{ env.UBUNTU_CODENAME }}-tongsuo
             tongsuo.version=${{ env.TONGSUO_VERSION }}
             openresty.version=${{ env.OPENRESTY_VERSION }}
+            panel.revision=${{ env.PANEL_APP_REVISION }}
+            ubuntu.codename=${{ env.UBUNTU_CODENAME }}
 
       - name: "build plan"
         run: |
           echo "========================================="
           echo "  Tongsuo   : ${{ env.TONGSUO_VERSION }}"
           echo "  OpenResty : ${{ env.OPENRESTY_VERSION }}"
+          echo "  Tag       : ${{ env.OPENRESTY_VERSION }}-${{ env.PANEL_APP_REVISION }}-${{ env.UBUNTU_CODENAME }}-tongsuo"
           echo "  Image     : ${{ steps.image-name.outputs.image }}"
           echo "  Event     : ${{ github.event_name }}"
           echo "========================================="
