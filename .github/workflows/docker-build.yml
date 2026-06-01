@@ -161,11 +161,14 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      - uses: actions/attest-build-provenance@v2
-        with:
-          subject-name: ${{ env.REGISTRY }}/${{ github.repository }}
-          subject-digest: ${{ steps.push-step.outputs.digest }}
-          push-to-registry: true
+      # attestation 已禁用 — 每次构建会往 registry 推送 attestation manifest，
+      # 在 ghcr.io 包页面显示为一堆哈希命名的"版本"，对个人项目无实际价值。
+      # 如需供应链安全审计，把 push-to-registry 改回 true 即可恢复。
+      # - uses: actions/attest-build-provenance@v2
+      #   with:
+      #     subject-name: ${{ env.REGISTRY }}/${{ github.repository }}
+      #     subject-digest: ${{ steps.push-step.outputs.digest }}
+      #     push-to-registry: true
 
   # ============================================================
   # Job 4: 拉取验证
