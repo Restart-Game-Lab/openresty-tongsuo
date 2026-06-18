@@ -57,7 +57,7 @@ jobs:
           echo "UBUNTU_CODENAME=${{ github.event.inputs.ubuntu_codename }}" >> $GITHUB_ENV
 
       - id: image-name
-        run: echo "image=${{ env.REGISTRY }}/${{ github.repository }}" >> $GITHUB_OUTPUT
+        run: echo "image=${{ env.REGISTRY }}/${{ github.repository }}" | tr '[:upper:]' '[:lower:]' >> $GITHUB_OUTPUT
 
       - id: meta
         uses: docker/metadata-action@v5
