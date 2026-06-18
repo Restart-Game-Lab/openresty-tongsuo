@@ -8,7 +8,7 @@
 
 | 组件 | 版本 |
 |------|------|
-| OpenResty | 1.29.2.5 |
+| OpenResty | 1.31.1.1 |
 | Tongsuo | 8.5.0-pre1 (API-compatible with OpenSSL 3.5.4) |
 | PCRE2 | 10.47 (JIT) |
 | LuaJIT + LuaRocks | bundled |

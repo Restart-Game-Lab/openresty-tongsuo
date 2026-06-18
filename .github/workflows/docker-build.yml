@@ -14,7 +14,7 @@ on:
         default: '8.5.0-pre1'
       openresty_version:
         description: 'OpenResty version'
-        default: '1.29.2.5'
+        default: '1.31.1.1'
       panel_app_revision:
         description: '1Panel app revision number'
         default: '0'
@@ -31,7 +31,7 @@ on:
 env:
   REGISTRY: ghcr.io
   TONGSUO_VERSION: "8.5.0-pre1"
-  OPENRESTY_VERSION: "1.29.2.5"
+  OPENRESTY_VERSION: "1.31.1.1"
   PANEL_APP_REVISION: "0"
   UBUNTU_CODENAME: "noble"
 
